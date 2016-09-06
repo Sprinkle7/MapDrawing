@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Geo Map</title>
+    <!-- Tell the browser to be responsive to screen width -->
+    <meta content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" name="viewport">
+    <!-- Bootstrap 3.3.5 -->
+    <link rel="stylesheet" href="bootstrap/css/bootstrap.min.css">
+    <link rel="stylesheet" href="dist/css/AdminLTE.min.css">
+    <script src="jquery-3.1.0.min.js"></script>
+    <script src="http://cdn.pubnub.com/pubnub-3.7.1.min.js"></script>
+    <script src="https://maps.googleapis.com/maps/api/js?v=3.exp"></script>
+
+ <style>
+      html, body, #map-canvas {
+        height: 550px;
+        margin: 0px;
+        width: 100%;
+        padding: 0px
+      }
+    </style>
+
+  </head>
+  <body class="hold-transition skin-blue">
+    <div class="wrapper">
+        <section class="content" style="height:550px">
+          <!-- Small boxes (Stat box) -->
+            <div class="col-lg-12">
+              <!-- small box -->
+              <div id="map-canvas" class="bg-map" style="display:none"></div>
+              <div class="small-box bg-aqua">
+                <div id="alert">
+                  <h3 style="padding:10px;"></h3>
+                </div>
+                <div class="inner">
+                  <div class="form-group">
+                    <label for="">Enter Phone #:</label>
+                    <input type="text" id="phone" class="form-control">
+                  </div>
+                  <div class="form-gourp">
+                    <input type="button" id="Search" value="Search" class="btn btn-success">
+                  </div>
+              </div>
+            </div>
+          </div>
+        </section>
+    </div>
+
+    <script src="https://code.jquery.com/ui/1.11.4/jquery-ui.min.js"></script>
+    <script>
+    $('#Search').click(function() {
+      var PhoneNo = $('#phone').val();
+      $.ajax({
+        url: 'Data/VerifyPhone.php',
+        type: 'POST',
+        data: {Phone: $('#phone').val()},
+      })
+      .done(function(Response) {
+        if (Response == "Please Fill The Form") {
+          $('h3').text('Sorry Fill The Form').show();
+          $('h3').delay(2000).hide(300);
+        }
+        else if(Response == "Not"){
+          $('h3').text('Sorry The Number Doesn\'t Exist!').show();
+          $('h3').delay(2000).hide(300);
+        }
+        else if (Response == "Yes") {
+           $('h3').text('Opening Map. Please Wait!').show();
+           $('.bg-aqua').hide(500);
+           $('.bg-map').show(1000);
+            if(PhoneNo != ''){
+              $.ajax({
+                url: 'Data/LoadCoordinates.php',
+                type: 'POST',
+                data: {Phone:PhoneNo},
+              })
+              .done(function(ResponseData) {
+                console.log(ResponseData);
+                var Json = $.parseJSON(ResponseData);
+                console.log(Json['Latitude']);
+                lat = Json['Latitude'];
+                lng = Json['Longitude'];
+                maps(lat,lng,PhoneNo);
+              });
+            }
+        }
+        else
+        {
+          $('h3').text('Invalid Request').show();
+          $('h3').delay(2000).hide(300);
+        }
+         
+      })
+      .fail(function(Response) {
+          $('h3').text('Sorry The Number Isn\'t Exist!').show();
+          $('h3').delay(2000).hide(300);
+      })
+      .always(function(Response) {
+        console.log(Response);
+      });
+      
+    });
+
+  function maps(lat,lng,PhoneNo) {
+     
+     window.setInterval(function(){
+            $.ajax({
+              url: 'Data/LoadCoordinates.php',
+              type: 'POST',
+              data: {Phone:PhoneNo},
+            })
+            .done(function(ResponseData) {
+              var Json = $.parseJSON(ResponseData);
+              lat = parseFloat(Json['Latitude']);
+              lng = parseFloat(Json['Longitude']);
+            });
+            redraw(lat,lng);
+     }, 1000);
+
+    var map;
+    var map_marker;
+    var lat = lat;
+    var lng = lng;
+    var lineCoordinatesArray = [];
+
+    // sets your location as default
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(function(position) { 
+        var locationMarker = null;
+        if (locationMarker){
+          return;
+        }
+        google.maps.event.addDomListener(window, 'load', initialize());
+      },
+      function(error) {
+        console.log("Error: ", error);
+      },
+      {
+        enableHighAccuracy: true
+      }
+      );
+    }    
+
+    function initialize() {
+      console.log("Google Maps Initialized")
+      map = new google.maps.Map(document.getElementById('map-canvas'), {
+        zoom: 15,
+        center: {lat: 71.510, lng : 34.0257, alt: 0}
+      }); 
+      map_marker = new google.maps.Marker({position: {lat: 71.510, lng: 34.0257}, map: map});
+      map_marker.setMap(map);
+    }
+    
+
+    // moves the marker and center of map
+    function redraw(Latitude,Longitude) {
+      console.log(Latitude,Longitude)
+      map.setCenter({lat: Latitude, lng : Longitude, alt: 0})
+      map_marker.setPosition({lat: Latitude, lng : Longitude, alt: 0});
+      pushCoordToArray(Latitude, Longitude);
+
+      var lineCoordinatesPath = new google.maps.Polyline({
+        path: lineCoordinatesArray,
+        geodesic: true,
+        strokeColor: '#2E10FF',
+        strokeOpacity: 1.0,
+        strokeWeight: 2
+      });
+      
+      lineCoordinatesPath.setMap(map);
+    }
+
+    function pushCoordToArray(latIn, lngIn) {
+      lineCoordinatesArray.push(new google.maps.LatLng(latIn, lngIn));
+    }
+
+  }
+    </script>
+  </body>
+</html>
